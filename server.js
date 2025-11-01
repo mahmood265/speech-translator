@@ -8,7 +8,7 @@ const { randomUUID } = require('crypto');
 const sdk = require('microsoft-cognitiveservices-speech-sdk');
 
 const app = express();
-const PORT = process.env.PORT || 3005;
+const PORT = process.env.NODE_ENV === "development" ? 3005 : 80;
 
 // Middleware
 app.use(cors());
@@ -71,7 +71,7 @@ app.get('/api/config', (req, res) => {
 
 // Streaming endpoints
 app.post('/api/stream/start', (req, res) => {
-    const { sampleRate } = req.body || {};
+    const { sampleRate, sourceLanguage: reqSourceLang, targetLanguage: reqTargetLang } = req.body || {};
 
     if (!sampleRate) {
         return res.status(400).json({ error: 'sampleRate is required' });
@@ -82,13 +82,20 @@ app.post('/api/stream/start', (req, res) => {
 
     fs.writeFileSync(rawPath, Buffer.alloc(0));
 
+    // Use requested languages or fall back to defaults
+    const sessionSourceLang = reqSourceLang || sourceLanguage;
+    const sessionTargetLang = reqTargetLang || targetLanguage;
+
     streamingSessions.set(sessionId, {
         rawPath,
         sampleRate,
-        totalSamples: 0
+        totalSamples: 0,
+        sourceLanguage: sessionSourceLang,
+        targetLanguage: sessionTargetLang
     });
 
     console.log(`🎬 Started streaming session: ${sessionId} (${sampleRate} Hz)`);
+    console.log(`   Languages: ${sessionSourceLang} → ${sessionTargetLang}`);
     res.json({ sessionId });
 });
 
@@ -184,6 +191,7 @@ app.get('/api/stream/translate/:sessionId', async (req, res) => {
 
     try {
         console.log(`🔄 Starting real-time translation for session: ${sessionId}`);
+        console.log(`   Using languages: ${session.sourceLanguage} → ${session.targetLanguage}`);
         
         await translateAudioFileWithEvents(session.wavPath, sendEvent, session);
         
@@ -219,8 +227,8 @@ app.get('/api/stream/audio/:sessionId', (req, res) => {
         audioData: session.audioData,
         originalText: session.finalOriginalText,
         translatedText: session.finalTranslatedText,
-        sourceLanguage,
-        targetLanguage
+        sourceLanguage: session.sourceLanguage,
+        targetLanguage: session.targetLanguage
     });
 
     // Cleanup after sending audio
@@ -297,12 +305,18 @@ async function translateAudioFile(audioFilePath) {
 // Event-based translation with real-time updates
 async function translateAudioFileWithEvents(audioFilePath, sendEvent, session) {
     return new Promise((resolve, reject) => {
+        // Create session-specific translation config
+        const sessionTranslationConfig = sdk.SpeechTranslationConfig.fromSubscription(speechKey, speechRegion);
+        sessionTranslationConfig.speechRecognitionLanguage = session.sourceLanguage;
+        sessionTranslationConfig.addTargetLanguage(session.targetLanguage.split('-')[0]); // Extract language code (e.g., 'ar' from 'ar-SA')
+        
         const wavBuffer = fs.readFileSync(audioFilePath);
         const audioConfig = sdk.AudioConfig.fromWavFileInput(wavBuffer);
-        const recognizer = new sdk.TranslationRecognizer(translationConfig, audioConfig);
+        const recognizer = new sdk.TranslationRecognizer(sessionTranslationConfig, audioConfig);
 
         let finalOriginalText = '';
         let finalTranslatedText = '';
+        const targetLangCode = session.targetLanguage.split('-')[0];
         
         // Find session ID
         let sessionId = null;
@@ -379,7 +393,7 @@ async function translateAudioFileWithEvents(audioFilePath, sendEvent, session) {
                 if (finalTranslatedText) {
                     try {
                         console.log('🔊 Synthesizing audio...');
-                        const audioData = await synthesizeTranslatedSpeech(finalTranslatedText);
+                        const audioData = await synthesizeTranslatedSpeech(finalTranslatedText, session.targetLanguage);
                         console.log(`✅ Audio generated: ${audioData.length} chars (base64)`);
                         
                         // Store audio in session for separate download
@@ -390,8 +404,8 @@ async function translateAudioFileWithEvents(audioFilePath, sendEvent, session) {
                         console.log(`📤 Sending audio-ready event for session: ${sessionId}`);
                         sendEvent('audio-ready', {
                             sessionId,
-                            sourceLanguage,
-                            targetLanguage,
+                            sourceLanguage: session.sourceLanguage,
+                            targetLanguage: session.targetLanguage,
                             originalText: finalOriginalText,
                             translatedText: finalTranslatedText
                         });
@@ -464,10 +478,10 @@ function recognizeAndTranslate(audioFilePath) {
 }
 
 // Synthesize translated text to speech
-function synthesizeTranslatedSpeech(text) {
+function synthesizeTranslatedSpeech(text, targetLang = targetLanguage) {
     return new Promise((resolve, reject) => {
         const speechConfig = sdk.SpeechConfig.fromSubscription(speechKey, speechRegion);
-        speechConfig.speechSynthesisLanguage = targetLanguage;
+        speechConfig.speechSynthesisLanguage = targetLang;
         
         if (process.env.TARGET_VOICE) {
             speechConfig.speechSynthesisVoiceName = process.env.TARGET_VOICE;
