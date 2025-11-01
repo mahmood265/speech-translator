@@ -228,6 +228,33 @@
             margin-bottom: 30px;
         }
 
+        .permission-status {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 16px;
+            margin-bottom: 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        .permission-status.granted {
+            background: #d4edda;
+            color: #155724;
+            border-color: #c3e6cb;
+        }
+
+        .permission-status.denied {
+            background: #f8d7da;
+            color: #721c24;
+            border-color: #f5c6cb;
+        }
+
         .record-button {
             width: 150px;
             height: 150px;
@@ -467,6 +494,10 @@
             </div>
 
             <div class="recording-section">
+                <div id="permissionStatus" class="permission-status" style="display: none;">
+                    <span id="permissionIcon">⏳</span>
+                    <span id="permissionText">Checking microphone...</span>
+                </div>
                 <button class="record-button" id="recordButton">
                     <span class="button-icon">🎤</span>
                     <span id="buttonText">Hold to Record</span>
@@ -541,6 +572,9 @@
         const historyCount = document.getElementById('historyCount');
         const sourceLanguageSelect = document.getElementById('sourceLanguage');
         const targetLanguageSelect = document.getElementById('targetLanguage');
+        const permissionStatus = document.getElementById('permissionStatus');
+        const permissionIcon = document.getElementById('permissionIcon');
+        const permissionText = document.getElementById('permissionText');
 
         // Load default languages from backend config
         async function loadConfig() {
@@ -557,15 +591,57 @@
         // Initialize
         loadConfig();
 
-        // Request microphone permission on page load
-        navigator.mediaDevices.getUserMedia({ audio: true })
-            .then(stream => {
+        // Check and request microphone permission on page load
+        async function checkMicrophonePermission() {
+            permissionStatus.style.display = 'flex';
+            permissionIcon.textContent = '⏳';
+            permissionText.textContent = 'Checking microphone...';
+            permissionStatus.className = 'permission-status';
+            
+            try {
+                // Check if permissions API is available
+                if (navigator.permissions) {
+                    const result = await navigator.permissions.query({ name: 'microphone' });
+                    console.log('🎤 Microphone permission status:', result.state);
+                    
+                    if (result.state === 'prompt') {
+                        console.log('🎤 Requesting microphone permission...');
+                        permissionIcon.textContent = '🎤';
+                        permissionText.textContent = 'Please allow microphone access...';
+                    } else if (result.state === 'denied') {
+                        permissionIcon.textContent = '❌';
+                        permissionText.textContent = 'Microphone access denied';
+                        permissionStatus.className = 'permission-status denied';
+                        recordButton.disabled = true;
+                        showError('Microphone access denied. Please enable it in your browser settings.');
+                        return;
+                    }
+                }
+                
+                // Request microphone access
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 stream.getTracks().forEach(track => track.stop());
-                console.log('Microphone access granted');
-            })
-            .catch(err => {
-                showError('Microphone access denied. Please enable microphone permissions.');
-            });
+                console.log('✅ Microphone access granted');
+                
+                // Show success status briefly then hide
+                permissionIcon.textContent = '✅';
+                permissionText.textContent = 'Microphone ready!';
+                permissionStatus.className = 'permission-status granted';
+                
+                setTimeout(() => {
+                    permissionStatus.style.display = 'none';
+                }, 2000);
+            } catch (err) {
+                console.error('❌ Microphone access error:', err);
+                permissionIcon.textContent = '❌';
+                permissionText.textContent = 'Microphone access denied';
+                permissionStatus.className = 'permission-status denied';
+                recordButton.disabled = true;
+                showError('Microphone access denied. Please enable microphone permissions in your browser settings.');
+            }
+        }
+
+        checkMicrophonePermission();
 
         // Mouse/Touch events for hold-to-record
         recordButton.addEventListener('mousedown', (e) => {
