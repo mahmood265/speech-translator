@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Azure Voice-to-Voice Translation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 40px 20px;
+        }
+
+        .app-layout {
+            display: flex;
+            gap: 24px;
+            width: 100%;
+            max-width: 1100px;
+            align-items: stretch;
+        }
+
+        .left-panel {
+            flex: 1 1 60%;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+        }
+
+        .history-panel {
+            flex: 1 1 40%;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+            padding: 28px;
+            display: flex;
+            flex-direction: column;
+            max-height: calc(100vh - 80px);
+        }
+
+        .history-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .history-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .history-subtitle {
+            font-size: 13px;
+            color: #777;
+            margin-bottom: 16px;
+        }
+
+        .history-list {
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 6px;
+        }
+
+        .history-empty {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            color: #888;
+            font-size: 14px;
+            border: 1px dashed rgba(102, 126, 234, 0.4);
+            border-radius: 12px;
+            padding: 24px;
+        }
+
+        .history-item {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: inset 0 0 0 1px rgba(102, 126, 234, 0.1);
+        }
+
+        .history-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .history-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .history-meta {
+            font-size: 12px;
+            font-weight: 600;
+            color: #667eea;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .history-play {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 6px 16px rgba(102, 126, 234, 0.3);
+        }
+
+        .history-play:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .history-original,
+        .history-translated {
+            font-size: 14px;
+            line-height: 1.5;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .history-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: #777;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            margin-bottom: 4px;
+        }
+
+        .history-flags {
+            font-size: 12px;
+            color: #999;
+            margin-top: 6px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .config-info {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .config-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .config-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .config-label {
+            color: #666;
+            font-weight: 500;
+        }
+
+        .config-value {
+            color: #333;
+            font-weight: 600;
+        }
+
+        .recording-section {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .record-button {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            border: none;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto;
+        }
+
+        .record-button:hover:not(:disabled) {
+            transform: scale(1.05);
+            box-shadow: 0 15px 40px rgba(102, 126, 234, 0.5);
+        }
+
+        .record-button:active:not(:disabled) {
+            transform: scale(0.95);
+        }
+
+        .record-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .record-button.recording {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                box-shadow: 0 10px 30px rgba(245, 87, 108, 0.4);
+            }
+            50% {
+                box-shadow: 0 10px 50px rgba(245, 87, 108, 0.7);
+            }
+        }
+
+        .button-icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+
+        .status {
+            text-align: center;
+            margin-top: 20px;
+            min-height: 30px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .status.recording {
+            color: #f5576c;
+            font-weight: 600;
+        }
+
+        .status.processing {
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .results {
+            margin-top: 30px;
+            display: none;
+        }
+
+        .results.show {
+            display: block;
+        }
+
+        .result-box {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 15px;
+        }
+
+        .result-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .result-text {
+            color: #333;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+
+        .audio-player {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .play-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .play-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .play-button:active {
+            transform: translateY(0);
+        }
+
+        .error {
+            background: #fee;
+            border: 1px solid #fcc;
+            color: #c33;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .error.show {
+            display: block;
+        }
+
+        .timer {
+            font-size: 24px;
+            font-weight: 600;
+            color: #f5576c;
+            margin-top: 10px;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(102, 126, 234, 0.3);
+            border-radius: 50%;
+            border-top-color: #667eea;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <div class="left-panel">
+            <h1>🌍 Voice Translation</h1>
+            <p class="subtitle">Speak and hear your translation instantly</p>
+
+            <div class="config-info" id="config">
+                <div class="config-row">
+                    <span class="config-label">Source Language:</span>
+                    <span class="config-value" id="sourceLang">Loading...</span>
+                </div>
+                <div class="config-row">
+                    <span class="config-label">Target Language:</span>
+                    <span class="config-value" id="targetLang">Loading...</span>
+                </div>
+            </div>
+
+            <div class="recording-section">
+                <button class="record-button" id="recordButton">
+                    <span class="button-icon">🎤</span>
+                    <span id="buttonText">Hold to Record</span>
+                </button>
+                <div class="status" id="status"></div>
+                <div class="timer" id="timer" style="display: none;">00:00</div>
+            </div>
+
+            <div class="error" id="error"></div>
+
+            <div class="results" id="results">
+                <div class="result-box">
+                    <div class="result-label">
+                        <span>🗣️</span>
+                        <span>Original Text</span>
+                    </div>
+                    <div class="result-text" id="originalText"></div>
+                </div>
+
+                <div class="result-box">
+                    <div class="result-label">
+                        <span>📝</span>
+                        <span>Translated Text</span>
+                    </div>
+                    <div class="result-text" id="translatedText"></div>
+                </div>
+
+                <div class="audio-player">
+                    <button class="play-button" id="playButton">
+                        🔊 Play Translation
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <aside class="history-panel">
+            <div class="history-header">
+                <span class="history-title">Recent Translations</span>
+                <span class="history-meta" id="historyCount">0 entries</span>
+            </div>
+            <p class="history-subtitle">Your translations will appear here. Click any item to replay.</p>
+            <div id="historyEmpty" class="history-empty">
+                🎧 Start recording to see your translation history.
+            </div>
+            <div id="historyList" class="history-list" style="display: none;"></div>
+        </aside>
+    </div>
+
+    <script>
+        let audioStream;
+        let mediaStreamSource;
+        let processorNode;
+        let gainNode;
+        let isRecording = false;
+        let recordingStartTime;
+        let timerInterval;
+        let audioContext;
+        let streamSessionId = null;
+        let chunkQueue = [];
+        let isSendingChunk = false;
+        let history = [];
+
+        const recordButton = document.getElementById('recordButton');
+        const buttonText = document.getElementById('buttonText');
+        const status = document.getElementById('status');
+        const timer = document.getElementById('timer');
+        const results = document.getElementById('results');
+        const error = document.getElementById('error');
+        const playButton = document.getElementById('playButton');
+        const historyList = document.getElementById('historyList');
+        const historyEmpty = document.getElementById('historyEmpty');
+        const historyCount = document.getElementById('historyCount');
+
+        // Load configuration
+        async function loadConfig() {
+            try {
+                const response = await fetch('/api/config');
+                const config = await response.json();
+                document.getElementById('sourceLang').textContent = config.sourceLanguage;
+                document.getElementById('targetLang').textContent = config.targetLanguage;
+            } catch (err) {
+                console.error('Failed to load config:', err);
+            }
+        }
+
+        // Initialize
+        loadConfig();
+
+        // Request microphone permission on page load
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(stream => {
+                stream.getTracks().forEach(track => track.stop());
+                console.log('Microphone access granted');
+            })
+            .catch(err => {
+                showError('Microphone access denied. Please enable microphone permissions.');
+            });
+
+        // Mouse/Touch events for hold-to-record
+        recordButton.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            startRecording();
+        });
+        recordButton.addEventListener('mouseup', (e) => {
+            e.preventDefault();
+            stopRecording(false);
+        });
+        recordButton.addEventListener('mouseleave', () => {
+            if (isRecording) stopRecording(false);
+        });
+
+        recordButton.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            startRecording();
+        });
+        recordButton.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            stopRecording(false);
+        });
+
+        async function startRecording() {
+            if (isRecording) return;
+
+            console.log('🎤 Starting recording...');
+            try {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+
+                audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaStreamSource = audioContext.createMediaStreamSource(audioStream);
+                processorNode = audioContext.createScriptProcessor(4096, 1, 1);
+                gainNode = audioContext.createGain();
+                gainNode.gain.value = 0;
+
+                console.log('📡 Starting streaming session...');
+                const session = await startStreamingSession(Math.floor(audioContext.sampleRate));
+                streamSessionId = session.sessionId;
+                console.log(`✅ Session started: ${streamSessionId}`);
+                chunkQueue = [];
+                isSendingChunk = false;
+
+                let chunkCount = 0;
+                processorNode.onaudioprocess = (event) => {
+                    if (!isRecording || !streamSessionId) {
+                        return;
+                    }
+
+                    const inputBuffer = event.inputBuffer;
+                    if (!inputBuffer || inputBuffer.numberOfChannels === 0) {
+                        return;
+                    }
+
+                    const channelData = inputBuffer.getChannelData(0);
+                    const pcmBuffer = convertFloat32ToPCMBuffer(channelData);
+                    chunkQueue.push(pcmBuffer);
+                    chunkCount++;
+                    if (chunkCount % 10 === 0) {
+                        console.log(`📦 Chunks queued: ${chunkCount}, Queue size: ${chunkQueue.length}`);
+                    }
+                    flushChunkQueue();
+                };
+
+                mediaStreamSource.connect(processorNode);
+                processorNode.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+
+                isRecording = true;
+                recordingStartTime = Date.now();
+
+                recordButton.classList.add('recording');
+                buttonText.textContent = 'Recording...';
+                status.textContent = '🎤 Streaming audio...';
+                status.className = 'status recording';
+                timer.style.display = 'block';
+                results.classList.remove('show');
+                error.classList.remove('show');
+
+                // Start timer
+                timerInterval = setInterval(updateTimer, 100);
+
+            } catch (err) {
+                console.error('Error during recording setup:', err);
+                stopRecording(true);
+                showError('Could not start streaming. Please check microphone permissions.');
+            }
+        }
+
+        async function stopRecording(skipFinalize = false) {
+            console.log(`🛑 Stop recording called (skipFinalize: ${skipFinalize})`);
+            if (!isRecording) {
+                console.log('⚠️ Not recording, returning');
+                return;
+            }
+
+            isRecording = false;
+            console.log('🔄 Cleaning up audio nodes...');
+
+            if (processorNode) {
+                processorNode.onaudioprocess = null;
+                processorNode.disconnect();
+                processorNode = null;
+            }
+
+            if (mediaStreamSource) {
+                mediaStreamSource.disconnect();
+                mediaStreamSource = null;
+            }
+
+            if (gainNode) {
+                gainNode.disconnect();
+                gainNode = null;
+            }
+
+            if (audioStream) {
+                audioStream.getTracks().forEach(track => track.stop());
+                audioStream = null;
+            }
+
+            recordButton.classList.remove('recording');
+            buttonText.textContent = 'Hold to Record';
+            status.textContent = skipFinalize ? '' : '⏳ Processing translation...';
+            status.className = skipFinalize ? 'status' : 'status processing';
+            timer.style.display = 'none';
+            clearInterval(timerInterval);
+
+            if (skipFinalize || !streamSessionId) {
+                console.log(`⏭️ Skipping finalization (skipFinalize: ${skipFinalize}, sessionId: ${streamSessionId})`);
+                chunkQueue = [];
+                isSendingChunk = false;
+                return;
+            }
+
+            try {
+                console.log(`⏳ Draining chunk queue (${chunkQueue.length} chunks remaining)...`);
+                await drainChunkQueue();
+                console.log('✅ Queue drained, finalizing session...');
+                
+                const response = await finalizeStreamingSession(streamSessionId);
+                console.log('✅ Session finalized:', response);
+                
+                if (response.status === 'ready') {
+                    // Connect to SSE for real-time translation
+                    await connectToTranslationStream(streamSessionId);
+                }
+                
+                streamSessionId = null;
+            } catch (err) {
+                console.error('❌ Translation error:', err);
+                showError('Translation failed. Please try again.');
+                status.textContent = '';
+                streamSessionId = null;
+            }
+        }
+
+        function updateTimer() {
+            const elapsed = Date.now() - recordingStartTime;
+            const seconds = Math.floor(elapsed / 1000);
+            const milliseconds = Math.floor((elapsed % 1000) / 100);
+            timer.textContent = `${String(seconds).padStart(2, '0')}:${milliseconds}`;
+        }
+
+        async function startStreamingSession(sampleRate) {
+            const response = await fetch('/api/stream/start', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ sampleRate })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to start streaming session');
+            }
+
+            return response.json();
+        }
+
+        async function flushChunkQueue() {
+            if (isSendingChunk || !streamSessionId || chunkQueue.length === 0) {
+                return;
+            }
+
+            isSendingChunk = true;
+            const chunk = chunkQueue.shift();
+
+            try {
+                const response = await fetch('/api/stream/chunk', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/octet-stream',
+                        'x-session-id': streamSessionId
+                    },
+                    body: chunk
+                });
+
+                if (!response.ok) {
+                    console.error(`❌ Chunk upload failed: ${response.status}`);
+                    throw new Error('Chunk upload failed');
+                }
+            } catch (error) {
+                console.error('❌ Failed to send chunk:', error);
+            } finally {
+                isSendingChunk = false;
+                if (chunkQueue.length > 0) {
+                    flushChunkQueue();
+                }
+            }
+        }
+
+        async function drainChunkQueue() {
+            return new Promise((resolve) => {
+                const checkQueue = () => {
+                    if (chunkQueue.length === 0 && !isSendingChunk) {
+                        resolve();
+                        return;
+                    }
+                    setTimeout(checkQueue, 30);
+                };
+                checkQueue();
+            });
+        }
+
+        async function finalizeStreamingSession(sessionId) {
+            console.log(`📤 Sending finalize request for session: ${sessionId}`);
+            const response = await fetch('/api/stream/stop', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ sessionId })
+            });
+
+            console.log(`📥 Finalize response status: ${response.status}`);
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('❌ Finalize failed:', errorText);
+                throw new Error('Failed to finalize streaming session');
+            }
+
+            const data = await response.json();
+            console.log('📦 Received response:', data);
+            return data;
+        }
+
+        async function connectToTranslationStream(sessionId) {
+            return new Promise((resolve, reject) => {
+                console.log(`🔌 Connecting to SSE stream for session: ${sessionId}`);
+                status.textContent = '🔄 Translating...';
+                status.className = 'status processing';
+                
+                const eventSource = new EventSource(`/api/stream/translate/${sessionId}`);
+                let translationData = {
+                    originalText: '',
+                    translatedText: '',
+                    audioData: null
+                };
+
+                // Show results section immediately
+                results.classList.add('show');
+
+                eventSource.addEventListener('recognizing', (e) => {
+                    const data = JSON.parse(e.data);
+                    console.log('⏳ Recognizing:', data);
+                    
+                    // Update UI with interim results
+                    document.getElementById('originalText').textContent = data.originalText + '...';
+                    document.getElementById('translatedText').textContent = data.translatedText + '...';
+                    status.textContent = '⏳ Recognizing speech...';
+                });
+
+                eventSource.addEventListener('recognized', (e) => {
+                    const data = JSON.parse(e.data);
+                    console.log('✅ Recognized:', data);
+                    
+                    translationData.originalText = data.originalText;
+                    translationData.translatedText = data.translatedText;
+                    
+                    // Update UI with final results
+                    document.getElementById('originalText').textContent = data.originalText;
+                    document.getElementById('translatedText').textContent = data.translatedText;
+                    status.textContent = '🔊 Generating audio...';
+                });
+
+                eventSource.addEventListener('audio-ready', async (e) => {
+                    const data = JSON.parse(e.data);
+                    console.log('🔊 Audio ready event received');
+                    console.log('   Session ID:', data.sessionId);
+                    
+                    status.textContent = '📥 Downloading audio...';
+                    
+                    try {
+                        // Fetch the audio data
+                        console.log(`📥 Fetching audio for session: ${data.sessionId}`);
+                        const audioResponse = await fetch(`/api/stream/audio/${data.sessionId}`);
+                        
+                        if (!audioResponse.ok) {
+                            throw new Error('Failed to fetch audio');
+                        }
+                        
+                        const audioData = await audioResponse.json();
+                        console.log('✅ Audio downloaded, length:', audioData.audioData?.length || 0);
+                        
+                        translationData.audioData = audioData.audioData;
+                        translationData.sourceLanguage = audioData.sourceLanguage;
+                        translationData.targetLanguage = audioData.targetLanguage;
+                        translationData.originalText = audioData.originalText;
+                        translationData.translatedText = audioData.translatedText;
+                        
+                        // Setup play button
+                        playButton.onclick = () => playAudio(audioData.audioData);
+                        playButton.disabled = false;
+                        playButton.textContent = '🔊 Play Translation';
+                        
+                        status.textContent = '🔊 Playing translation...';
+                        status.className = 'status';
+                        
+                        // Store in history immediately after getting audio
+                        console.log('💾 Storing in history...');
+                        storeHistoryEntry(translationData);
+                        
+                        // Auto-play
+                        console.log('🎵 Attempting to auto-play audio...');
+                        playAudio(audioData.audioData);
+                    } catch (error) {
+                        console.error('❌ Failed to fetch audio:', error);
+                        showError('Failed to download audio: ' + error.message);
+                    }
+                });
+
+                eventSource.addEventListener('complete', (e) => {
+                    console.log('✅ Translation complete');
+                    eventSource.close();
+                    resolve();
+                });
+
+                eventSource.addEventListener('error', (e) => {
+                    const data = e.data ? JSON.parse(e.data) : { message: 'Unknown error' };
+                    console.error('❌ SSE Error:', data);
+                    eventSource.close();
+                    showError(data.message || 'Translation failed');
+                    reject(new Error(data.message));
+                });
+
+                eventSource.onerror = (err) => {
+                    console.error('❌ EventSource error:', err);
+                    eventSource.close();
+                    
+                    // Check if we got any data before the error
+                    if (translationData.originalText && translationData.audioData) {
+                        storeHistoryEntry(translationData);
+                        status.textContent = '✅ Translation complete!';
+                        resolve();
+                    } else {
+                        showError('Connection to translation service failed');
+                        reject(new Error('EventSource connection failed'));
+                    }
+                };
+            });
+        }
+
+        function convertFloat32ToPCMBuffer(float32Array) {
+            const int16Array = new Int16Array(float32Array.length);
+            for (let i = 0; i < float32Array.length; i++) {
+                let sample = float32Array[i];
+                sample = Math.max(-1, Math.min(1, sample));
+                int16Array[i] = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+            }
+            return int16Array.buffer;
+        }
+
+        function displayResults(data) {
+            if (!data) return;
+            
+            document.getElementById('originalText').textContent = data.originalText || '';
+            document.getElementById('translatedText').textContent = data.translatedText || '';
+            
+            // Store audio data for playback
+            if (data.audioData) {
+                playButton.onclick = () => playAudio(data.audioData);
+                playButton.disabled = false;
+                playButton.textContent = '🔊 Play Translation';
+                playAudio(data.audioData);
+            }
+            
+            results.classList.add('show');
+        }
+
+        function storeHistoryEntry(data) {
+            console.log('📝 storeHistoryEntry called with:', {
+                hasOriginal: !!data.originalText,
+                hasTranslated: !!data.translatedText,
+                hasAudio: !!data.audioData,
+                sourceLanguage: data.sourceLanguage,
+                targetLanguage: data.targetLanguage
+            });
+
+            if (!data.originalText || !data.translatedText || !data.audioData) {
+                console.warn('⚠️ Incomplete data, not storing in history');
+                return;
+            }
+
+            const entry = {
+                id: Date.now(),
+                originalText: data.originalText,
+                translatedText: data.translatedText,
+                audioData: data.audioData,
+                timestamp: new Date(),
+                sourceLanguage: data.sourceLanguage,
+                targetLanguage: data.targetLanguage
+            };
+
+            history.unshift(entry);
+            console.log(`✅ Added to history. Total entries: ${history.length}`);
+            renderHistory();
+        }
+
+        function renderHistory() {
+            if (history.length === 0) {
+                historyEmpty.style.display = 'flex';
+                historyList.style.display = 'none';
+                historyCount.textContent = '0 entries';
+                return;
+            }
+
+            historyEmpty.style.display = 'none';
+            historyList.style.display = 'block';
+            historyCount.textContent = `${history.length} ${history.length === 1 ? 'entry' : 'entries'}`;
+
+            historyList.innerHTML = history.map(entry => {
+                const time = entry.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                return `
+                    <div class="history-item" data-id="${entry.id}">
+                        <div class="history-item-header">
+                            <span class="history-meta">${time}</span>
+                            <button class="history-play" data-action="play">Play</button>
+                        </div>
+                        <div>
+                            <div class="history-label">Original (${entry.sourceLanguage})</div>
+                            <div class="history-original">${sanitize(entry.originalText)}</div>
+                        </div>
+                        <div>
+                            <div class="history-label">Translated (${entry.targetLanguage})</div>
+                            <div class="history-translated">${sanitize(entry.translatedText)}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        historyList?.addEventListener('click', (event) => {
+            const button = event.target.closest('button[data-action="play"]');
+            if (!button) return;
+
+            const item = button.closest('.history-item');
+            const entryId = Number(item.dataset.id);
+            const entry = history.find(h => h.id === entryId);
+            if (entry) {
+                playAudio(entry.audioData);
+                document.getElementById('originalText').textContent = entry.originalText;
+                document.getElementById('translatedText').textContent = entry.translatedText;
+                results.classList.add('show');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        });
+
+        function sanitize(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function playAudio(base64Audio) {
+            if (!base64Audio) {
+                console.error('❌ No audio data provided');
+                showError('No audio data available');
+                return;
+            }
+
+            try {
+                console.log('🔊 Playing audio, base64 length:', base64Audio.length);
+                
+                // Decode base64 to binary
+                const binaryString = atob(base64Audio);
+                const bytes = new Uint8Array(binaryString.length);
+                
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                
+                // Azure TTS returns WAV format by default
+                const blob = new Blob([bytes], { type: 'audio/wav' });
+                const url = URL.createObjectURL(blob);
+                const audio = new Audio(url);
+                
+                console.log('🔊 Audio blob created, size:', blob.size, 'bytes');
+                
+                // Play with promise to catch errors
+                const playPromise = audio.play();
+                
+                if (playPromise !== undefined) {
+                    playPromise
+                        .then(() => {
+                            console.log('✅ Audio playback started');
+                            playButton.textContent = '🔊 Playing...';
+                            playButton.disabled = true;
+                            status.textContent = '🔊 Playing translation...';
+                            status.className = 'status';
+                        })
+                        .catch(error => {
+                            console.error('❌ Audio playback failed:', error);
+                            showError('Audio playback failed: ' + error.message);
+                            playButton.disabled = false;
+                            URL.revokeObjectURL(url);
+                        });
+                }
+                
+                audio.onended = () => {
+                    console.log('✅ Audio playback ended');
+                    playButton.textContent = '🔊 Play Translation';
+                    playButton.disabled = false;
+                    status.textContent = '✅ Translation complete!';
+                    status.className = 'status';
+                    URL.revokeObjectURL(url);
+                };
+
+                audio.onerror = (e) => {
+                    console.error('❌ Audio error event:', e);
+                    console.error('   Error code:', audio.error?.code);
+                    console.error('   Error message:', audio.error?.message);
+                    playButton.textContent = '🔊 Play Translation';
+                    playButton.disabled = false;
+                    status.textContent = '⚠️  Unable to play audio. Click to retry.';
+                    status.className = 'status';
+                    showError('Audio playback error: ' + (audio.error?.message || 'Unknown error'));
+                    URL.revokeObjectURL(url);
+                };
+            } catch (error) {
+                console.error('❌ Error in playAudio:', error);
+                showError('Failed to play audio: ' + error.message);
+            }
+        }
+
+        function showError(message) {
+            error.textContent = message;
+            error.classList.add('show');
+            status.textContent = '';
+        }
+    </script>
+</body>
+</html>
